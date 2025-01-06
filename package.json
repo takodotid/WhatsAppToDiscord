@@ -11,6 +11,7 @@
     "author": "Fatih Kilic",
     "repository": "https://github.com/FKLC/WhatsAppToDiscord",
     "license": "MIT",
+    "packageManager": "pnpm@9.15.3",
     "prettier": {
         "trailingComma": "es5",
         "bracketSpacing": true,
