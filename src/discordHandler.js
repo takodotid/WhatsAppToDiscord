@@ -57,29 +57,32 @@ client.on("whatsappMessage", async (message) => {
     }
 
     if (msgContent || files.length) {
-        msgContent = utils.discord.partitionText(msgContent);
+        const parsedMsgContent = utils.discord.partitionText(msgContent);
+
         while (msgContent.length > 1) {
             // eslint-disable-next-line no-await-in-loop
             await utils.discord.safeWebhookSend(
                 webhook,
                 {
-                    content: msgContent.shift(),
+                    content: parsedMsgContent.shift(),
                     username: message.name,
                     avatarURL: message.profilePic,
                 },
                 message.channelJid
             );
         }
+
         const dcMessage = await utils.discord.safeWebhookSend(
             webhook,
             {
-                content: msgContent.shift() || null,
+                content: parsedMsgContent.shift() || null,
                 username: message.name,
                 files,
                 avatarURL: message.profilePic,
             },
             message.channelJid
         );
+
         if (dcMessage.channel.type === "GUILD_NEWS" && state.settings.Publish) {
             await dcMessage.crosspost();
         }
@@ -170,11 +173,15 @@ const commands = {
     },
     async list(_message, params) {
         let contacts = utils.whatsapp.contacts();
+
         if (params) {
             contacts = contacts.filter((name) => name.toLowerCase().includes(params.join(" ")));
         }
-        contacts = contacts.sort((a, b) => a.localeCompare(b)).join("\n");
-        const message = utils.discord.partitionText(contacts.length ? `${contacts}\n\nNot the whole list? You can refresh your contacts by typing \`resync\`` : "No results were found.");
+
+        const parsedContacts = contacts.sort((a, b) => a.localeCompare(b)).join("\n");
+
+        const message = utils.discord.partitionText(parsedContacts.length ? `${parsedContacts}\n\nNot the whole list? You can refresh your contacts by typing \`resync\`` : "No results were found.");
+
         while (message.length !== 0) {
             // eslint-disable-next-line no-await-in-loop
             await controlChannel.send(message.shift());

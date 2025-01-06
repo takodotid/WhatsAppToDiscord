@@ -4,17 +4,20 @@ const { Client, Intents } = require("discord.js");
 
 const fs = require("fs/promises");
 const path = require("path");
-const readline = require("readline");
 
 const bidirectionalMap = (capacity, data = {}) => {
     const keys = Object.keys(data);
     return new Proxy(data, {
         set(target, prop, newVal) {
+            if (typeof prop !== "string" || typeof newVal !== "string") return false;
+
             keys.push(prop, newVal);
+
             if (keys.length > capacity) {
                 delete target[keys.shift()];
                 delete target[keys.shift()];
             }
+
             target[prop] = newVal;
             target[newVal] = prop;
             return true;

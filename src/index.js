@@ -4,16 +4,10 @@ const storage = require("./storage.js");
 const utils = require("./utils.js");
 const whatsappHandler = require("./whatsappHandler.js");
 
-const pino = require("pino");
-
 (async () => {
     const version = "v0.10.28";
-    state.logger = pino({
-        mixin() {
-            return { version };
-        },
-    });
     let autoSaver = setInterval(() => storage.save(), 5 * 60 * 1000);
+
     ["SIGINT", "uncaughtException", "SIGTERM"].forEach((eventName) =>
         process.on(eventName, async (err) => {
             clearInterval(autoSaver);

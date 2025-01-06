@@ -282,6 +282,7 @@ const discord = {
     channelIdToJid(channelId) {
         return Object.keys(state.chats).find((key) => state.chats[key].channelId === channelId);
     },
+    /** @param {string} text */
     partitionText(text) {
         return text.match(/(.|[\r\n]){1,2000}/g) || [];
     },
@@ -321,11 +322,13 @@ const discord = {
         if (state.goccRuns[jid]) {
             return state.goccRuns[jid];
         }
+        /** @type {(value: Webhook) => void | undefined}*/
         let resolve;
         state.goccRuns[jid] = new Promise((res) => {
             resolve = res;
         });
         if (state.chats[jid]) {
+            // @ts-ignore
             const webhook = new Webhook(state.dcClient, state.chats[jid]);
             resolve(webhook);
             return webhook;
@@ -604,6 +607,7 @@ const whatsapp = {
             }
         }
     },
+    /** @param {MessageAttachment} attachment */
     createDocumentContent(attachment) {
         let contentType = attachment.contentType.split("/")[0];
         contentType = ["image", "video", "audio"].includes(contentType) ? contentType : "document";

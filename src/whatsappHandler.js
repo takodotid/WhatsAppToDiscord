@@ -20,6 +20,8 @@ const connectToWhatsApp = async (retry = 1) => {
         generateHighQualityLinkPreview: false,
         browser: ["Firefox (Linux)", "", ""],
     });
+
+    // @ts-ignore
     client.contacts = state.contacts;
 
     client.ev.on("connection.update", async (update) => {
@@ -42,7 +44,7 @@ const connectToWhatsApp = async (retry = 1) => {
             } else {
                 await controlChannel.send("Connection failed 5 times. Please rescan the QR code.");
                 await utils.whatsapp.deleteSession();
-                await actions.start(true);
+                await actions.start();
             }
         } else if (connection === "open") {
             state.waClient = client;
@@ -53,6 +55,7 @@ const connectToWhatsApp = async (retry = 1) => {
     });
     client.ev.on("creds.update", saveState);
     ["chats.set", "contacts.set", "chats.upsert", "chats.update", "contacts.upsert", "contacts.update", "groups.upsert", "groups.update"].forEach((eventName) =>
+        // @ts-ignore
         client.ev.on(eventName, utils.whatsapp.updateContacts)
     );
 
@@ -141,6 +144,7 @@ const connectToWhatsApp = async (retry = 1) => {
         });
     });
 
+    // @ts-ignore
     client.ev.on("discordMessage", async ({ jid, message }) => {
         if (((state.settings.oneWay >> 1) & 1) === 0) {
             return;
@@ -152,6 +156,7 @@ const connectToWhatsApp = async (retry = 1) => {
         if (state.settings.UploadAttachments) {
             await Promise.all(
                 message.attachments.map((file) =>
+                    // @ts-ignore
                     client.sendMessage(jid, utils.whatsapp.createDocumentContent(file)).then((m) => {
                         state.lastMessages[message.id] = m.key.id;
                     })
@@ -178,6 +183,7 @@ const connectToWhatsApp = async (retry = 1) => {
         state.lastMessages[message.id] = (await client.sendMessage(jid, content, options)).key.id;
     });
 
+    // @ts-ignore
     client.ev.on("discordEdit", async ({ jid, message }) => {
         if (((state.settings.oneWay >> 1) & 1) === 0) {
             return;
@@ -199,6 +205,7 @@ const connectToWhatsApp = async (retry = 1) => {
         });
     });
 
+    // @ts-ignore
     client.ev.on("discordReaction", async ({ jid, reaction, removed }) => {
         if (((state.settings.oneWay >> 1) & 1) === 0) {
             return;
