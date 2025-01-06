@@ -6,7 +6,7 @@ module.exports = {
     WAGroupPrefix: false,
     UploadAttachments: true,
     Token: '',
-    GuildID: '',
+    GuildID: process.env.GUILD_ID || '',
     Categories: [],
     ControlChannelID: '',
     LocalDownloads: false,
