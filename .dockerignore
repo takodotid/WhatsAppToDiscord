@@ -9,3 +9,5 @@ docs/
 .git
 storage/
 logs.txt
+.eslintrc.cjs
+install_script.sh
