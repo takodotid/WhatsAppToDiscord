@@ -12,4 +12,4 @@ RUN apk add --no-cache tini \
 
 ENTRYPOINT [ "tini", "--", "docker-entrypoint.sh" ]
 
-CMD [ "node", "dist/index.js" ]
+CMD [ "node", "src/index.js" ]
