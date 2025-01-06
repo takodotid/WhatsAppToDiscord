@@ -10,3 +10,5 @@ docs/
 storage/
 logs.txt
 *.env
+.eslintrc.cjs
+install_script.sh
