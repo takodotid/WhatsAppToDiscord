@@ -1,27 +1,108 @@
 {
-  "name": "wa2dc",
-  "version": "1.0.0",
-  "description": "WhatsAppToDiscord is a Discord bot that uses WhatsApp Web as a bridge between Discord and WhatsApp",
-  "main": "src/index.js",
-  "scripts": {
-    "start": "node .",
-    "docs": "docsify serve docs"
-  },
-  "author": "Fatih Kilic",
-  "repository": "https://github.com/FKLC/WhatsAppToDiscord",
-  "license": "MIT",
-  "dependencies": {
-    "@adiwajshing/keyed-db": "^0.2.4",
-    "@whiskeysockets/baileys": "^6.7.9",
-    "discord.js": "^13.17.1",
-    "pino": "^9.6.0",
-    "qrcode": "^1.5.4"
-  },
-  "devDependencies": {
-    "docsify-cli": "^4.4.4",
-    "eslint": "^8.44.0",
-    "eslint-config-airbnb-base": "^15.0.0",
-    "eslint-plugin-import": "^2.27.5",
-    "prettier": "^2.8.8"
-  }
+    "name": "wa2dc",
+    "version": "1.0.0",
+    "description": "WhatsAppToDiscord is a Discord bot that uses WhatsApp Web as a bridge between Discord and WhatsApp",
+    "main": "src/index.js",
+    "scripts": {
+        "start": "node .",
+        "docs": "docsify serve docs",
+        "lint": "eslint ."
+    },
+    "author": "Fatih Kilic",
+    "repository": "https://github.com/FKLC/WhatsAppToDiscord",
+    "license": "MIT",
+    "prettier": {
+        "trailingComma": "es5",
+        "bracketSpacing": true,
+        "arrowParens": "always",
+        "endOfLine": "auto",
+        "htmlWhitespaceSensitivity": "css",
+        "bracketSameLine": false,
+        "jsxSingleQuote": false,
+        "printWidth": 200,
+        "semi": true,
+        "tabWidth": 4
+    },
+    "eslintConfig": {
+        "env": {
+            "node": true,
+            "es2021": true
+        },
+        "extends": "eslint:recommended",
+        "parserOptions": {
+            "ecmaVersion": "latest",
+            "sourceType": "module"
+        },
+        "plugins": [
+            "import",
+            "prettier"
+        ],
+        "rules": {
+            "no-multi-spaces": "error",
+            "no-empty-function": "off",
+            "prettier/prettier": "error",
+            "eqeqeq": [
+                "error",
+                "always"
+            ],
+            "no-case-declarations": "error",
+            "no-confusing-arrow": "error",
+            "no-else-return": "error",
+            "no-var": "error",
+            "object-shorthand": [
+                "error",
+                "always"
+            ],
+            "prefer-arrow-callback": "error",
+            "prefer-const": "error",
+            "prefer-template": "error",
+            "spaced-comment": [
+                "error",
+                "always"
+            ],
+            "yoda": "error",
+            "import/no-unresolved": "off",
+            "import/no-duplicates": "error",
+            "import/no-absolute-path": "error",
+            "import/no-namespace": "error",
+            "import/first": "error",
+            "import/no-anonymous-default-export": "error",
+            "import/order": [
+                "error",
+                {
+                    "newlines-between": "always",
+                    "groups": [
+                        "type",
+                        "index",
+                        "sibling",
+                        "parent",
+                        "internal",
+                        "external",
+                        "builtin",
+                        "object"
+                    ],
+                    "alphabetize": {
+                        "order": "asc",
+                        "caseInsensitive": true
+                    }
+                }
+            ]
+        }
+    },
+    "dependencies": {
+        "@adiwajshing/keyed-db": "^0.2.4",
+        "@whiskeysockets/baileys": "^6.7.9",
+        "discord.js": "^13.17.1",
+        "pino": "^9.6.0",
+        "qrcode": "^1.5.4"
+    },
+    "devDependencies": {
+        "docsify-cli": "^4.4.4",
+        "eslint": "^8.57.1",
+        "eslint-config-airbnb-base": "^15.0.0",
+        "eslint-config-prettier": "^9.1.0",
+        "eslint-plugin-import": "^2.31.0",
+        "eslint-plugin-prettier": "^5.2.1",
+        "prettier": "^3.4.2"
+    }
 }
