@@ -91,14 +91,12 @@
         }
     },
     "dependencies": {
-        "@adiwajshing/keyed-db": "^0.2.4",
         "@whiskeysockets/baileys": "^6.7.9",
         "discord.js": "^13.17.1",
         "pino": "^9.6.0",
         "qrcode": "^1.5.4"
     },
     "devDependencies": {
-        "docsify-cli": "^4.4.4",
         "eslint": "^8.57.1",
         "eslint-config-airbnb-base": "^15.0.0",
         "eslint-config-prettier": "^9.1.0",
