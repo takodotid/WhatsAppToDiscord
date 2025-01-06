@@ -1,20 +1,15 @@
+const commandsHandler = require("./commands.js");
 const state = require("./state.js");
 const utils = require("./utils.js");
 
-const { Client, Intents } = require("discord.js");
+const { ApplicationCommandOptionType } = require("discord-api-types/v10");
+const { Client } = require("discord.js");
 
 const client = new Client({
-    intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.GUILD_MESSAGE_REACTIONS, Intents.FLAGS.MESSAGE_CONTENT],
+    intents: ["Guilds", "GuildMessages", "GuildMessageReactions", "MessageContent"],
 });
-let controlChannel;
 
-const setControlChannel = async () => {
-    controlChannel = await client.channels.fetch(state.settings.ControlChannelID).catch(() => null);
-};
-
-client.on("ready", async () => {
-    await setControlChannel();
-});
+const commands = commandsHandler(state, utils);
 
 client.on("channelDelete", async (channel) => {
     const jid = utils.discord.channelIdToJid(channel.id);
@@ -102,6 +97,8 @@ client.on("whatsappReaction", async (reaction) => {
         return;
     }
 
+    /** @type {import("discord.js").TextChannel} */
+    // @ts-ignore
     const channel = await utils.discord.getChannel(channelId);
     const message = await channel.messages.fetch(messageId);
     await message.react(reaction.text).catch(async (err) => {
@@ -140,240 +137,51 @@ client.on("whatsappCall", async ({ call, jid }) => {
     }
 });
 
-const commands = {
-    async ping(message) {
-        controlChannel.send(`Pong ${Date.now() - message.createdTimestamp}ms!`);
-    },
-    async pairwithcode(_message, params) {
-        if (params.length !== 1) {
-            await controlChannel.send('Please enter your number. Usage: `pairWithCode <number>`. Don\'t use "+" or any other special characters.');
-            return;
+client.on("guildAvailable", async (guild) => {
+    try {
+        for (const commandName of Object.keys(commands)) {
+            guild.commands.create({
+                name: commandName,
+                description: "WA2DC command",
+                defaultMemberPermissions: ["Administrator"],
+                options: [
+                    {
+                        name: "args",
+                        description: "Arguments for the command",
+                        type: ApplicationCommandOptionType.String,
+                        required: false,
+                    },
+                ],
+            });
         }
+    } catch (error) {
+        console.error(error);
+    }
+});
 
-        const code = await state.waClient.requestPairingCode(params[0]);
-        await controlChannel.send(`Your pairing code is: ${code}`);
-    },
-    async start(_message, params) {
-        if (!params.length) {
-            await controlChannel.send("Please enter a phone number or name. Usage: `start <number with country code or name>`.");
-            return;
-        }
+client.on("interactionCreate", async (interaction) => {
+    if (!interaction.isCommand() || interaction.user.id === client.user.id) {
+        return;
+    }
 
-        // eslint-disable-next-line no-restricted-globals
-        const jid = utils.whatsapp.toJid(params.join(" "));
-        if (!jid) {
-            await controlChannel.send(`Couldn't find \`${params.join(" ")}\`.`);
-            return;
-        }
-        await utils.discord.getOrCreateChannel(jid);
+    const args = interaction.options.data.map((option) => option.value.toString());
 
-        if (state.settings.Whitelist.length) {
-            state.settings.Whitelist.push(jid);
-        }
-    },
-    async list(_message, params) {
-        let contacts = utils.whatsapp.contacts();
-
-        if (params) {
-            contacts = contacts.filter((name) => name.toLowerCase().includes(params.join(" ")));
-        }
-
-        const parsedContacts = contacts.sort((a, b) => a.localeCompare(b)).join("\n");
-
-        const message = utils.discord.partitionText(parsedContacts.length ? `${parsedContacts}\n\nNot the whole list? You can refresh your contacts by typing \`resync\`` : "No results were found.");
-
-        while (message.length !== 0) {
-            // eslint-disable-next-line no-await-in-loop
-            await controlChannel.send(message.shift());
-        }
-    },
-    async addtowhitelist(message, params) {
-        const channelID = /<#(\d*)>/.exec(message)?.[1];
-        if (params.length !== 1 || !channelID) {
-            await controlChannel.send("Please enter a valid channel name. Usage: `addToWhitelist #<target channel>`.");
-            return;
-        }
-
-        const jid = utils.discord.channelIdToJid(channelID);
-        if (!jid) {
-            await controlChannel.send("Couldn't find a chat with the given channel.");
-            return;
-        }
-
-        state.settings.Whitelist.push(jid);
-        await controlChannel.send("Added to the whitelist!");
-    },
-    async removefromwhitelist(message, params) {
-        const channelID = /<#(\d*)>/.exec(message)?.[1];
-        if (params.length !== 1 || !channelID) {
-            await controlChannel.send("Please enter a valid channel name. Usage: `removeFromWhitelist #<target channel>`.");
-            return;
-        }
-
-        const jid = utils.discord.channelIdToJid(channelID);
-        if (!jid) {
-            await controlChannel.send("Couldn't find a chat with the given channel.");
-            return;
-        }
-
-        state.settings.Whitelist = state.settings.Whitelist.filter((el) => el !== jid);
-        await controlChannel.send("Removed from the whitelist!");
-    },
-    async listwhitelist() {
-        await controlChannel.send(state.settings.Whitelist.length ? `\`\`\`${state.settings.Whitelist.map((jid) => utils.whatsapp.jidToName(jid)).join("\n")}\`\`\`` : "Whitelist is empty/inactive.");
-    },
-    async setdcprefix(message, params) {
-        if (params.length !== 0) {
-            const prefix = message.content.split(" ").slice(1).join(" ");
-            state.settings.DiscordPrefixText = prefix;
-            await controlChannel.send(`Discord prefix is set to ${prefix}!`);
-        } else {
-            state.settings.DiscordPrefixText = null;
-            await controlChannel.send("Discord prefix is set to your discord username!");
-        }
-    },
-    async enabledcprefix() {
-        state.settings.DiscordPrefix = true;
-        await controlChannel.send("Discord username prefix enabled!");
-    },
-    async disabledcprefix() {
-        state.settings.DiscordPrefix = false;
-        await controlChannel.send("Discord username prefix disabled!");
-    },
-    async enablewaprefix() {
-        state.settings.WAGroupPrefix = true;
-        await controlChannel.send("WhatsApp name prefix enabled!");
-    },
-    async disablewaprefix() {
-        state.settings.WAGroupPrefix = false;
-        await controlChannel.send("WhatsApp name prefix disabled!");
-    },
-    async enablewaupload() {
-        state.settings.UploadAttachments = true;
-        await controlChannel.send("Enabled uploading files to WhatsApp!");
-    },
-    async disablewaupload() {
-        state.settings.UploadAttachments = false;
-        await controlChannel.send("Disabled uploading files to WhatsApp!");
-    },
-    async help() {
-        await controlChannel.send("See all the available commands at https://fklc.github.io/WhatsAppToDiscord/#/commands");
-    },
-    async resync() {
-        await state.waClient.authState.keys.set({
-            "app-state-sync-version": { critical_unblock_low: null },
-        });
-        await state.waClient.resyncAppState(["critical_unblock_low"]);
-        for (const [jid, attributes] of Object.entries(await state.waClient.groupFetchAllParticipating())) {
-            state.waClient.contacts[jid] = attributes.subject;
-        }
-        await utils.discord.renameChannels();
-        await controlChannel.send("Re-synced!");
-    },
-    async enablelocaldownloads() {
-        state.settings.LocalDownloads = true;
-        await controlChannel.send(`Enabled local downloads. You can now download files larger than 8MB.`);
-    },
-    async disablelocaldownloads() {
-        state.settings.LocalDownloads = false;
-        await controlChannel.send(`Disabled local downloads. You won't be able to download files larger than 8MB.`);
-    },
-    async getdownloadmessage() {
-        await controlChannel.send(`Download message format is set to "${state.settings.LocalDownloadMessage}"`);
-    },
-    async setdownloadmessage(message) {
-        state.settings.LocalDownloadMessage = message.content.split(" ").slice(1).join(" ");
-        await controlChannel.send(`Set download message format to "${state.settings.LocalDownloadMessage}"`);
-    },
-    async getdownloaddir() {
-        await controlChannel.send(`Download path is set to "${state.settings.DownloadDir}"`);
-    },
-    async setdownloaddir(message) {
-        state.settings.DownloadDir = message.content.split(" ").slice(1).join(" ");
-        await controlChannel.send(`Set download path to "${state.settings.DownloadDir}"`);
-    },
-    async enablepublishing() {
-        state.settings.Publish = true;
-        await controlChannel.send(`Enabled publishing messages sent to news channels.`);
-    },
-    async disablepublishing() {
-        state.settings.Publish = false;
-        await controlChannel.send(`Disabled publishing messages sent to news channels.`);
-    },
-    async enablechangenotifications() {
-        state.settings.ChangeNotifications = true;
-        await controlChannel.send(`Enabled profile picture change and status update notifications.`);
-    },
-    async disablechangenotifications() {
-        state.settings.ChangeNotifications = false;
-        await controlChannel.send(`Disabled profile picture change and status update notifications.`);
-    },
-    async autosaveinterval(_message, params) {
-        if (params.length !== 1) {
-            await controlChannel.send("Usage: autoSaveInterval <seconds>\nExample: autoSaveInterval 60");
-            return;
-        }
-        state.settings.autoSaveInterval = +params[0];
-        await controlChannel.send(`Changed auto save interval to ${params[0]}.`);
-    },
-    async lastmessagestorage(_message, params) {
-        if (params.length !== 1) {
-            await controlChannel.send("Usage: lastMessageStorage <size>\nExample: lastMessageStorage 1000");
-            return;
-        }
-        state.settings.lastMessageStorage = +params[0];
-        await controlChannel.send(`Changed last message storage size to ${params[0]}.`);
-    },
-    async oneway(_message, params) {
-        if (params.length !== 1) {
-            await controlChannel.send("Usage: oneWay <discord|whatsapp|disabled>\nExample: oneWay whatsapp");
-            return;
-        }
-
-        if (params[0] === "disabled") {
-            state.settings.oneWay = 0b11;
-            await controlChannel.send(`Two way communication is enabled.`);
-        } else if (params[0] === "whatsapp") {
-            state.settings.oneWay = 0b10;
-            await controlChannel.send(`Messages will be only sent to WhatsApp.`);
-        } else if (params[0] === "discord") {
-            state.settings.oneWay = 0b01;
-            await controlChannel.send(`Messages will be only sent to Discord.`);
-        } else {
-            await controlChannel.send("Usage: oneWay <discord|whatsapp|disabled>\nExample: oneWay whatsapp");
-        }
-    },
-    async redirectwebhooks(_message, params) {
-        if (params.length !== 1) {
-            await controlChannel.send("Usage: redirectWebhooks <yes|no>\nExample: redirectWebhooks yes");
-            return;
-        }
-
-        state.settings.redirectWebhooks = params[0] === "yes";
-        await controlChannel.send(`Redirecting webhooks is set to ${state.settings.redirectWebhooks}.`);
-    },
-    async unknownCommand(message) {
-        await controlChannel.send(`Unknown command: \`${message.content}\`\nType \`help\` to see available commands`);
-    },
-};
+    const command = interaction.commandName.toLowerCase();
+    await (commands[command] || commands.unknownCommand)(interaction, args);
+});
 
 client.on("messageCreate", async (message) => {
-    console.log(message, state.dcClient.user.id);
+    // console.log(message, state.dcClient.user.id);
+
     if (message.author === client.user || message.applicationId === client.user.id || (message.webhookId !== null && !state.settings.redirectWebhooks)) {
         return;
     }
 
-    if (message.channel === controlChannel) {
-        const command = message.content.toLowerCase().split(" ");
-        await (commands[command[0]] || commands.unknownCommand)(message, command.slice(1));
-    } else {
-        const jid = utils.discord.channelIdToJid(message.channel.id);
-        if (jid === null) {
-            return;
-        }
+    const jid = utils.discord.channelIdToJid(message.channel.id);
 
-        state.waClient.ev.emit("discordMessage", { jid, message });
-    }
+    if (!jid) return;
+
+    state.waClient.ev.emit("discordMessage", { jid, message });
 });
 
 client.on("messageUpdate", async (_, message) => {
@@ -402,7 +210,7 @@ client.on("messageReactionAdd", async (reaction, user) => {
     }
     const messageId = state.lastMessages[reaction.message.id];
     if (messageId === null) {
-        await reaction.message.channel.send("Couldn't send the reaction. You can only react to last 500 messages.");
+        await reaction.message.reply("Couldn't send the reaction. You can only react to last 500 messages.");
         return;
     }
     if (user.id === state.dcClient.user.id) {
@@ -419,7 +227,7 @@ client.on("messageReactionRemove", async (reaction, user) => {
     }
     const messageId = state.lastMessages[reaction.message.id];
     if (messageId === null) {
-        await reaction.message.channel.send("Couldn't remove the reaction. You can only react to last 500 messages.");
+        await reaction.message.reply("Couldn't remove the reaction. You can only react to last 500 messages.");
         return;
     }
     if (user.id === state.dcClient.user.id) {
@@ -434,5 +242,4 @@ module.exports = {
         await client.login(state.settings.Token);
         return client;
     },
-    setControlChannel,
 };

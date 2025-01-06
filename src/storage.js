@@ -1,12 +1,16 @@
 const state = require("./state.js");
 
-const { Client, Intents } = require("discord.js");
+const { Client, ChannelType } = require("discord.js");
 
+const fsSync = require("fs");
 const fs = require("fs/promises");
 const path = require("path");
 
 const bidirectionalMap = (capacity, data = {}) => {
+    if (!data) data = {};
+
     const keys = Object.keys(data);
+
     return new Proxy(data, {
         set(target, prop, newVal) {
             if (typeof prop !== "string" || typeof newVal !== "string") return false;
@@ -28,6 +32,10 @@ const bidirectionalMap = (capacity, data = {}) => {
 const storage = {
     _storageDir: "./storage/",
     async upsert(name, data) {
+        if (!fsSync.existsSync(this._storageDir)) {
+            await fs.mkdir(this._storageDir, { recursive: true });
+        }
+
         await fs.writeFile(path.join(this._storageDir, name), data);
     },
 
@@ -44,7 +52,7 @@ const storage = {
 
         try {
             const settings = Object.assign(state.settings, JSON.parse(result));
-            if (settings.Token === "") return setup.firstRun();
+            if (!settings.Token) return setup.firstRun();
             return settings;
         } catch (err) {
             return setup.firstRun();
@@ -79,50 +87,64 @@ const storage = {
 const setup = {
     async setupDiscordChannels(token) {
         return new Promise((resolve) => {
-            const client = new Client({ intents: [Intents.FLAGS.GUILDS] });
-            client.once("ready", () => {
-                console.log(`Invite the bot using the following link: https://discordapp.com/oauth2/authorize?client_id=${client.user.id}&scope=bot&permissions=536879120`);
-            });
-            client.once("guildCreate", async (guild) => {
-                const category = await guild.channels.create("whatsapp", {
-                    type: "GUILD_CATEGORY",
+            const client = new Client({ intents: ["Guilds"] });
+
+            if (process.env.DISCORD_GUILD_ID) {
+                client.once("guildAvailable", async (guild) => {
+                    resolve(await this.setControlChannel(client, guild));
                 });
-                const controlChannel = await guild.channels.create("control-room", {
-                    type: "GUILD_TEXT",
-                    parent: category,
+            } else {
+                client.once("ready", () => {
+                    console.log(`Invite the bot using the following link: https://discordapp.com/oauth2/authorize?client_id=${client.user.id}&scope=bot&permissions=536879120`);
                 });
-                client.destroy();
-                resolve({
-                    GuildID: guild.id,
-                    Categories: [category.id],
-                    ControlChannelID: controlChannel.id,
+
+                client.once("guildCreate", async (guild) => {
+                    resolve(await this.setControlChannel(client, guild));
                 });
-            });
+            }
+
             client.login(token);
         });
+    },
+
+    /**
+     * @param {Client} client
+     * @param {import("discord.js").Guild} guild
+     */
+    async setControlChannel(client, guild) {
+        const category = await guild.channels.create({
+            name: "Whatsapp",
+            type: ChannelType.GuildCategory,
+        });
+
+        const controlChannel = await guild.channels.create({
+            name: "control",
+            type: ChannelType.GuildText,
+            parent: category,
+        });
+
+        client.destroy();
+
+        return {
+            GuildID: guild.id,
+            Categories: [category.id],
+            ControlChannelID: controlChannel.id,
+        };
     },
 
     async firstRun() {
         const settings = state.settings;
         console.log("It seems like this is your first run.");
-        if (process.env.WA2DC_TOKEN === "CHANGE_THIS_TOKEN") {
-            console.log("Please set WA2DC_TOKEN environment variable.");
+
+        settings.Token = process.env.DISCORD_BOT_TOKEN;
+
+        if (!settings.Token) {
+            console.log("Please provide a Discord bot token.");
             process.exit();
         }
-        const input = async (query) => {
-            return new Promise((resolve) => {
-                const rl = readline.createInterface({
-                    input: process.stdin,
-                    output: process.stdout,
-                });
-                rl.question(query, (answer) => {
-                    resolve(answer);
-                    rl.close();
-                });
-            });
-        };
-        settings.Token = process.env.WA2DC_TOKEN || (await input("Please enter your bot token: "));
+
         Object.assign(settings, await this.setupDiscordChannels(settings.Token));
+
         return settings;
     },
 };

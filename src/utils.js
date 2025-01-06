@@ -1,8 +1,7 @@
 const state = require("./state.js");
 
 const { downloadMediaMessage } = require("@whiskeysockets/baileys");
-const { Webhook, MessageAttachment } = require("discord.js");
-const QRCode = require("qrcode");
+const { Webhook, ChannelType } = require("discord.js");
 
 const child_process = require("child_process");
 const crypto = require("crypto");
@@ -34,7 +33,7 @@ const updater = {
     async fetchLatestVersion() {
         const response = await requests.fetchJson("https://api.github.com/repos/FKLC/WhatsAppToDiscord/releases/latest");
         if ("error" in response) {
-            state.logger.error(response.error);
+            console.error(response.error);
             return null;
         }
         if ("tag_name" in response.result && "body" in response.result) {
@@ -43,7 +42,7 @@ const updater = {
                 changes: response.result.body,
             };
         }
-        state.logger.error("Tag name wasn't in result");
+        console.error("Tag name wasn't in result");
         return null;
     },
 
@@ -287,14 +286,15 @@ const discord = {
         return text.match(/(.|[\r\n]){1,2000}/g) || [];
     },
     async getGuild() {
-        return state.dcClient.guilds.fetch(state.settings.GuildID).catch((err) => {
-            state.logger?.error(err);
-        });
+        /** @type {import("discord.js").Client} */
+        const client = state.dcClient;
+
+        return client.guilds.fetch(state.settings.GuildID);
     },
     async getChannel(channelID) {
-        return (await this.getGuild()).channels.fetch(channelID).catch((err) => {
-            state.logger?.error(err);
-        });
+        /** @type {import("discord.js").Client} */
+        const client = state.dcClient;
+        return client.channels.fetch(channelID);
     },
     async getCategory(nthChannel) {
         const nthCategory = Math.floor((nthChannel + 1) / 50);
@@ -303,8 +303,9 @@ const discord = {
                 (
                     await (
                         await this.getGuild()
-                    ).channels.create(`whatsapp ${nthCategory + 1}`, {
-                        type: "GUILD_CATEGORY",
+                    ).channels.create({
+                        name: `whatsapp ${nthCategory + 1}`,
+                        type: ChannelType.GuildCategory,
                     })
                 ).id
             );
@@ -312,8 +313,9 @@ const discord = {
         return state.settings.Categories[nthCategory];
     },
     async createChannel(name) {
-        return (await this.getGuild()).channels.create(name, {
-            type: "GUILD_TEXT",
+        return (await this.getGuild()).channels.create({
+            name,
+            type: ChannelType.GuildText,
             parent: await this.getCategory(Object.keys(state.chats).length + this._unfinishedGoccCalls),
         });
     },
@@ -342,7 +344,9 @@ const discord = {
             }
             throw err;
         });
-        const webhook = await channel.createWebhook("WA2DC");
+
+        const webhook = await channel.createWebhook({ name: "WA2DC" });
+
         state.chats[jid] = {
             id: webhook.id,
             type: webhook.type,
@@ -360,7 +364,8 @@ const discord = {
             if (err.code === 10015 && err.message.includes("Unknown Webhook")) {
                 delete state.goccRuns[jid];
                 const channel = await this.getChannel(state.chats[jid].channelId);
-                webhook = await channel.createWebhook("WA2DC");
+                // @ts-ignore
+                webhook = await channel.createWebhook({ name: "WA2DC" });
                 state.chats[jid] = {
                     id: webhook.id,
                     type: webhook.type,
@@ -380,26 +385,16 @@ const discord = {
             state.settings.Categories = [state.settings.CategoryID];
         }
         const categoryExists = await guild.channels.fetch(state.settings.Categories?.[0]).catch(() => null);
-        const controlExists = await guild.channels.fetch(state.settings.ControlChannelID).catch(() => null);
 
         if (!categoryExists) {
             state.settings.Categories[0] = (
-                await guild.channels.create("whatsapp", {
-                    type: "GUILD_CATEGORY",
+                await guild.channels.create({
+                    name: "whatsapp",
+                    type: ChannelType.GuildCategory,
                 })
             ).id;
         }
 
-        if (!controlExists) {
-            state.settings.ControlChannelID = (await this.createChannel("control-room")).id;
-        }
-
-        await (
-            await guild.channels.fetch(state.settings.ControlChannelID)
-        ).edit({
-            position: 0,
-            parent: state.settings.Categories[0],
-        });
         for (const [jid, webhook] of Object.entries(state.chats)) {
             guild.channels.fetch(webhook.channelId).catch(() => {
                 delete state.chats[jid];
@@ -412,12 +407,6 @@ const discord = {
                 state.settings.Categories = state.settings.Categories.filter((id) => categoryId !== id);
             }
         }
-
-        for (const [, channel] of guild.channels.cache) {
-            if (channel.id !== state.settings.ControlChannelID && state.settings.Categories.includes(channel.parentId) && !this.channelIdToJid(channel.id)) {
-                channel.edit({ parent: null });
-            }
-        }
     },
     async renameChannels() {
         const guild = await this.getGuild();
@@ -428,9 +417,6 @@ const discord = {
                 name: whatsapp.jidToName(jid),
             });
         }
-    },
-    async getControlChannel() {
-        return this.getChannel(state.settings.ControlChannelID);
     },
     async findAvailableName(dir, fileName) {
         let absPath;
@@ -481,9 +467,6 @@ const whatsapp = {
     },
     contacts() {
         return Object.values(state.waClient.contacts);
-    },
-    async sendQR(qrString) {
-        await (await discord.getControlChannel()).send({ files: [new MessageAttachment(await QRCode.toBuffer(qrString), "qrcode.png")] });
     },
     getChannelJid(rawMsg) {
         return this.formatJid(rawMsg?.key?.remoteJid || rawMsg.chatId);
@@ -540,7 +523,16 @@ const whatsapp = {
         if (msg.fileLength.low > 26214400 && !state.settings.LocalDownloads) return -1;
         return {
             name: this.getFilename(msg, nMsgType),
-            attachment: await downloadMediaMessage(rawMsg, "buffer", {}, { logger: state.logger, reuploadRequest: state.waClient.updateMediaMessage }),
+            attachment: await downloadMediaMessage(
+                rawMsg,
+                "buffer",
+                {},
+                {
+                    reuploadRequest: state.waClient.updateMediaMessage,
+                    // @ts-ignore
+                    logger: console,
+                }
+            ),
             largeFile: msg.fileLength.low > 26214400,
         };
     },
@@ -607,7 +599,7 @@ const whatsapp = {
             }
         }
     },
-    /** @param {MessageAttachment} attachment */
+    /** @param {import("discord.js").Attachment} attachment */
     createDocumentContent(attachment) {
         let contentType = attachment.contentType.split("/")[0];
         contentType = ["image", "video", "audio"].includes(contentType) ? contentType : "document";
@@ -651,7 +643,7 @@ const requests = {
             .then((resp) => resp.json())
             .then((result) => ({ result }))
             .catch((error) => {
-                state.logger?.error(error);
+                console.error(error);
                 return { error };
             });
     },
@@ -661,7 +653,7 @@ const requests = {
             .then((resp) => resp.text())
             .then((result) => ({ result }))
             .catch((error) => {
-                state.logger?.error(error);
+                console.error(error);
                 return { error };
             });
     },
@@ -672,7 +664,7 @@ const requests = {
             .then((buffer) => Buffer.from(buffer))
             .then((result) => ({ result }))
             .catch((error) => {
-                state.logger?.error(error);
+                console.error(error);
                 return { error };
             });
     },
@@ -681,7 +673,7 @@ const requests = {
         const readable = await fetch(url, options)
             .then((resp) => resp.body)
             .catch((error) => {
-                state.logger?.error(error);
+                console.error(error);
                 return null;
             });
         if (readable === null) return false;
@@ -690,7 +682,7 @@ const requests = {
             .pipeline(readable, fs.createWriteStream(path))
             .then(() => true)
             .catch((error) => {
-                state.logger?.error(error);
+                console.error(error);
                 return false;
             });
     },

@@ -7,14 +7,12 @@ let authState;
 let saveState;
 
 const connectToWhatsApp = async (retry = 1) => {
-    const controlChannel = await utils.discord.getControlChannel();
     const { version } = await baileys.fetchLatestBaileysVersion();
 
     const client = baileys.default({
         version,
         printQRInTerminal: false,
         auth: authState,
-        logger: state.logger,
         markOnlineOnConnect: false,
         shouldSyncHistoryMessage: () => false,
         generateHighQualityLinkPreview: false,
@@ -25,32 +23,29 @@ const connectToWhatsApp = async (retry = 1) => {
     client.contacts = state.contacts;
 
     client.ev.on("connection.update", async (update) => {
-        const { connection, lastDisconnect, qr } = update;
-        if (qr) {
-            utils.whatsapp.sendQR(qr);
-        }
+        const { connection, qr } = update;
+
+        state.connectionQR = qr;
+
         if (connection === "close") {
-            state.logger.error(lastDisconnect.error);
+            // console.error(lastDisconnect.error);
+
             if (retry <= 3) {
-                await controlChannel.send(`WhatsApp connection failed! Trying to reconnect! Retry #${retry}`);
                 await connectToWhatsApp(retry + 1);
             } else if (retry <= 5) {
                 const delay = (retry - 3) * 10;
-                await controlChannel.send(`WhatsApp connection failed! Waiting ${delay} seconds before trying to reconnect! Retry #${retry}.`);
                 await new Promise((resolve) => {
                     setTimeout(resolve, delay * 1000);
                 });
                 await connectToWhatsApp(retry + 1);
             } else {
-                await controlChannel.send("Connection failed 5 times. Please rescan the QR code.");
                 await utils.whatsapp.deleteSession();
                 await actions.start();
             }
         } else if (connection === "open") {
             state.waClient = client;
-            // eslint-disable-next-line no-param-reassign
+            state.connectionQR = null;
             retry = 1;
-            await controlChannel.send("WhatsApp connection successfully opened!");
         }
     });
     client.ev.on("creds.update", saveState);
@@ -180,6 +175,7 @@ const connectToWhatsApp = async (retry = 1) => {
 
         if (message.content === "") return;
 
+        console.log(jid, content, options);
         state.lastMessages[message.id] = (await client.sendMessage(jid, content, options)).key.id;
     });
 

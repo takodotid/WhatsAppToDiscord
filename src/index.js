@@ -11,8 +11,8 @@ const whatsappHandler = require("./whatsappHandler.js");
     ["SIGINT", "uncaughtException", "SIGTERM"].forEach((eventName) =>
         process.on(eventName, async (err) => {
             clearInterval(autoSaver);
-            state.logger.error(err);
-            state.logger.info("Exiting!");
+            console.error(err);
+            console.info("Exiting!");
             if (["SIGINT", "SIGTERM"].includes(err)) {
                 await storage.save();
             }
@@ -20,43 +20,42 @@ const whatsappHandler = require("./whatsappHandler.js");
         })
     );
 
-    state.logger.info("Starting");
+    console.info("Starting");
 
     await utils.updater.run(version);
-    state.logger.info("Update checked.");
+    console.info("Update checked.");
 
     const conversion = await utils.sqliteToJson.convert();
     if (!conversion) {
-        state.logger.error("Conversion failed!");
+        console.error("Conversion failed!");
         process.exit(1);
     }
-    state.logger.info("Conversion completed.");
+    console.info("Conversion completed.");
 
     state.settings = await storage.parseSettings();
-    state.logger.info("Loaded settings.");
+    console.info("Loaded settings.");
 
     clearInterval(autoSaver);
     autoSaver = setInterval(() => storage.save(), state.settings.autoSaveInterval * 1000);
-    state.logger.info("Changed auto save interval.");
+    console.info("Changed auto save interval.");
 
     state.contacts = await storage.parseContacts();
-    state.logger.info("Loaded contacts.");
+    console.info("Loaded contacts.");
 
     state.chats = await storage.parseChats();
-    state.logger.info("Loaded chats.");
+    console.info("Loaded chats.");
 
     state.lastMessages = await storage.parseLastMessages();
-    state.logger.info("Loaded last messages.");
+    console.info("Loaded last messages.");
 
     state.dcClient = await discordHandler.start();
-    state.logger.info("Discord client started.");
+    console.info("Discord client started.");
 
     await utils.discord.repairChannels();
-    await discordHandler.setControlChannel();
-    state.logger.info("Repaired channels.");
+    console.info("Repaired channels.");
 
     await whatsappHandler.start();
-    state.logger.info("WhatsApp client started.");
+    console.info("WhatsApp client started.");
 
     console.log("Bot is now running. Press CTRL-C to exit.");
 })();

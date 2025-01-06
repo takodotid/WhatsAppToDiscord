@@ -4,7 +4,8 @@
     "description": "WhatsAppToDiscord is a Discord bot that uses WhatsApp Web as a bridge between Discord and WhatsApp",
     "main": "src/index.js",
     "scripts": {
-        "start": "node .",
+        "start": "node --env-file=.env .",
+        "dev": "node --env-file=.env --watch .",
         "docs": "docsify serve docs",
         "lint": "eslint ."
     },
@@ -91,8 +92,10 @@
         }
     },
     "dependencies": {
+        "@discordjs/rest": "^2.4.2",
         "@whiskeysockets/baileys": "^6.7.9",
-        "discord.js": "^13.17.1",
+        "discord-api-types": "^0.37.115",
+        "discord.js": "^14.17.2",
         "pino": "^9.6.0",
         "qrcode": "^1.5.4"
     },

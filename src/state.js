@@ -24,7 +24,7 @@ module.exports = {
     chats: {},
     contacts: {},
     startTime: Math.round(Date.now() / 1000),
-    logger: null,
     lastMessages: null,
     goccRuns: {},
+    connectionQR: null,
 };
